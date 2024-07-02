@@ -1,0 +1,155 @@
+import React, { Component } from "react";
+import { Link } from "react-router-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import axios from "axios";
+import BlogItem from "../blog/blog-item";
+import BlogModal from "../modals/blog-modal";
+
+class Blog extends Component {
+    constructor() {
+        super();
+
+        this.state = {
+            blogItems: [],
+            totalCount: 0,
+            currentPage: 0,
+            isLoading: true,
+            blogModalIsOpen: false
+        }
+
+        this.getBlogItems = this.getBlogItems.bind(this);
+        //this.activateInfiniteScroll();
+        this.onScroll = this.onScroll.bind(this);
+        window.addEventListener("scroll", this.onScroll, false);
+        this.handleNewBlogClick = this.handleNewBlogClick.bind(this);
+        this.handleModalClose = this.handleModalClose.bind(this);
+        this.handleSuccessfullNewBlogSubmission = this.handleSuccessfullNewBlogSubmission.bind(this);
+        this.handleDeleteClick = this.handleDeleteClick.bind(this);
+    }
+
+    getBlogItems() {
+        this.setState({
+            currentPage: this.state.currentPage + 1
+        });
+        axios.get(
+            `https://alazne.devcamp.space/portfolio/portfolio_blogs?page=${this.state.currentPage}`,
+            { withCredentials: true }
+        ).then(response => {
+            console.log("getting more items", response);
+            this.setState({
+                blogItems: this.state.blogItems.concat(response.data.portfolio_blogs),
+                totalCount: response.data.meta.total_records,
+                isLoading: false
+            });
+        }).catch(error => {
+            console.log("blogerror", error);
+        });
+    }
+
+    componentWillMount() {
+        this.getBlogItems();
+    }
+
+    componentWillUnmount() {
+        window.removeEventListener("scroll", this.onScroll, false);
+    }
+
+    onScroll() {
+        //window.onscroll = () => { //flooding
+            //console.log("window.innHeight", window.innerHeight); //alto ventana
+            //console.log("document.scrollTop", document.documentElement.scrollTop); //alto hasta punto scroll
+            //console.log("document.offHeight", document.documentElement.offsetHeight); //total alto página
+        
+            if (this.state.isLoading || this.state.blogItems.length === this.state.totalCount) {
+                return; //si se cumple no ejecuta el resto del código de la función
+            }
+
+            if (window.innerHeight + document.documentElement.scrollTop === document.documentElement.offsetHeight) {
+                this.getBlogItems();
+            }
+        //}
+    }
+
+    handleNewBlogClick() {
+        this.setState({
+            blogModalIsOpen: true
+        });
+    }
+
+    handleModalClose() {
+        this.setState({
+            blogModalIsOpen: false
+        });
+    }
+
+    handleSuccessfullNewBlogSubmission(blog) {
+        this.setState({
+            blogModalIsOpen: false,
+            blogItems: [blog].concat(this.state.blogItems)
+        });
+    }
+
+    handleDeleteClick(blog) {
+        axios
+            .delete(
+            `https://alazne.devcamp.space/portfolio/portfolio_blogs/${blog.id}`,
+            { withCredentials: true }
+            )
+            .then(response => {
+                this.setState({
+                    blogItems: this.state.blogItems.filter(blogItem => {
+                        return blog.id !== blogItem.id;
+                    })
+                });
+            })
+            .catch(error => {
+            console.log("delete blog error", error);
+            });
+}
+
+    render() {
+        const blogRecords = this.state.blogItems.map(blogItem => {
+            if (this.props.loggedInStatus === "LOGGED_IN") {
+                return (
+                    <div key={blogItem.id} className="admin-blog-wrapper">
+                        <BlogItem blogItem={blogItem} />
+                        <a onClick={() => this.handleDeleteClick(blogItem)}>
+                            <FontAwesomeIcon icon="trash" />
+                        </a>
+                    </div>
+                );
+            } else {
+                return <BlogItem key={blogItem.id} blogItem={blogItem} />;
+            }
+        });
+
+        return (
+            <div className="blog-container">
+                <BlogModal
+                    modalIsOpen={this.state.blogModalIsOpen}
+                    handleModalClose={this.handleModalClose}
+                    handleSuccessfullNewBlogSubmission={this.handleSuccessfullNewBlogSubmission}
+                />
+
+                {this.props.loggedInStatus === "LOGGED_IN" ?
+                    (<div className="new-blog-link">
+                        <a onClick={this.handleNewBlogClick}>
+                            <FontAwesomeIcon icon="square-plus" />
+                        </a>
+                    </div>) : null
+                }
+                
+                <div className="content-container">
+                    {blogRecords}
+                </div>
+
+                {this.state.isLoading ? 
+                    (<div className="content-loader">
+                        <FontAwesomeIcon icon="spinner" spin />
+                    </div>) : null}
+            </div>
+        );
+    }
+}
+
+export default Blog;
